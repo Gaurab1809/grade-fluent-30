@@ -1,7 +1,7 @@
 project_id = "rotzcmawfehxiupngera"
 
 [functions.extract-text]
-verify_jwt = true
+verify_jwt = false
 
 [functions.evaluate-paper]
-verify_jwt = true
+verify_jwt = false
