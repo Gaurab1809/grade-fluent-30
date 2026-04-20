@@ -32,8 +32,16 @@ export const Route = createRootRoute({
     meta: [
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Khata — Handwritten Exam Evaluation" },
+      { title: "Handwritten Exam Evaluation" },
       { name: "description", content: "Upload Bangla or English handwritten exam papers, extract structured text, and grade against your rubric — automatically." },
+      { property: "og:title", content: "Handwritten Exam Evaluation" },
+      { name: "twitter:title", content: "Handwritten Exam Evaluation" },
+      { property: "og:description", content: "Upload Bangla or English handwritten exam papers, extract structured text, and grade against your rubric — automatically." },
+      { name: "twitter:description", content: "Upload Bangla or English handwritten exam papers, extract structured text, and grade against your rubric — automatically." },
+      { property: "og:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/ffzj3b6oMwVnWiaMj5DKB3SGex53/social-images/social-1776716919515-Screenshot_2026-04-21_022824.webp" },
+      { name: "twitter:image", content: "https://storage.googleapis.com/gpt-engineer-file-uploads/ffzj3b6oMwVnWiaMj5DKB3SGex53/social-images/social-1776716919515-Screenshot_2026-04-21_022824.webp" },
+      { name: "twitter:card", content: "summary_large_image" },
+      { property: "og:type", content: "website" },
     ],
     links: [
       { rel: "stylesheet", href: appCss },
