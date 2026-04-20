@@ -10,7 +10,33 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { toast } from "sonner";
-import { Sparkles, Wand2, Loader2, Download, FileText, RefreshCw } from "lucide-react";
+import { Sparkles, Wand2, Loader2, Download, FileText, RefreshCw, Upload } from "lucide-react";
+import * as XLSX from "xlsx";
+import mammoth from "mammoth";
+
+async function parseRubricFile(file: File): Promise<string> {
+  const name = file.name.toLowerCase();
+  if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) {
+    return await file.text();
+  }
+  if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) {
+    const buf = await file.arrayBuffer();
+    const wb = XLSX.read(buf, { type: "array" });
+    const parts: string[] = [];
+    for (const sheetName of wb.SheetNames) {
+      const csv = XLSX.utils.sheet_to_csv(wb.Sheets[sheetName]).trim();
+      if (!csv) continue;
+      parts.push(wb.SheetNames.length > 1 ? `# ${sheetName}\n${csv}` : csv);
+    }
+    return parts.join("\n\n");
+  }
+  if (name.endsWith(".docx")) {
+    const buf = await file.arrayBuffer();
+    const { value } = await mammoth.extractRawText({ arrayBuffer: buf });
+    return value.trim();
+  }
+  throw new Error("Unsupported file type. Use .xlsx, .xls, .csv, .docx, .txt or paste below.");
+}
 
 export const Route = createFileRoute("/")({
   component: Workspace,
@@ -31,6 +57,7 @@ function Workspace() {
   const [evalData, setEvalData] = useState<EvaluationData | null>(null);
   const [historyOpen, setHistoryOpen] = useState(false);
   const objectUrlRef = useRef<string | null>(null);
+  const rubricFileRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (!loading && !user) navigate({ to: "/login" });
@@ -220,14 +247,44 @@ function Workspace() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="rubric" className="text-xs uppercase tracking-wider text-muted-foreground">
-                Step 2 · Grading rubric
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="rubric" className="text-xs uppercase tracking-wider text-muted-foreground">
+                  Step 2 · Grading rubric
+                </Label>
+                <input
+                  ref={rubricFileRef}
+                  type="file"
+                  accept=".xlsx,.xls,.csv,.docx,.txt,.md,text/plain,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const f = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!f) return;
+                    try {
+                      const text = await parseRubricFile(f);
+                      if (!text.trim()) throw new Error("File appears empty.");
+                      setRubric(text);
+                      toast.success(`Loaded rubric from ${f.name}`);
+                    } catch (err) {
+                      toast.error(err instanceof Error ? err.message : "Failed to read file");
+                    }
+                  }}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => rubricFileRef.current?.click()}
+                >
+                  <Upload className="h-3.5 w-3.5 mr-1.5" /> Upload file
+                </Button>
+              </div>
               <Textarea
                 id="rubric"
                 value={rubric}
                 onChange={(e) => setRubric(e.target.value)}
-                placeholder={`e.g.\nQ1 (10): Definition of photosynthesis. Award full marks for chemical equation.\nQ2 (15): Compare prose styles of Tagore and Nazrul...\nTotal: 100`}
+                placeholder={`Paste rubric or upload .xlsx / .docx / .txt\n\ne.g.\nQ1 (10): Definition of photosynthesis. Award full marks for chemical equation.\nQ2 (15): Compare prose styles of Tagore and Nazrul...\nTotal: 100`}
                 className="min-h-[180px] font-mono text-sm bg-card"
               />
             </div>
