@@ -1,0 +1,7 @@
+project_id = "rotzcmawfehxiupngera"
+
+[functions.extract-text]
+verify_jwt = true
+
+[functions.evaluate-paper]
+verify_jwt = true
