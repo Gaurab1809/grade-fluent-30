@@ -158,6 +158,10 @@ function Workspace() {
       setEvalData(data as EvaluationData);
       setStage("evaluated");
       toast.success("Evaluation complete.");
+      // Fire-and-forget: parse the rubric for the teacher's awarded marks (for /metrics)
+      supabase.functions
+        .invoke("parse-rubric-scores", { body: { evaluationId, rubric } })
+        .catch((err) => console.warn("rubric parse failed:", err));
     } catch (e) {
       console.error(e);
       toast.error(e instanceof Error ? e.message : "Evaluation failed");

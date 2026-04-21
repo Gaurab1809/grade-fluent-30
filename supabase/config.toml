@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.evaluate-paper]
 verify_jwt = false
+
+[functions.parse-rubric-scores]
+verify_jwt = false
+
+[functions.compute-metrics]
+verify_jwt = false
