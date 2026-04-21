@@ -247,7 +247,7 @@ function MetricsPage() {
                   <XAxis type="number" dataKey="x" name="Human %" domain={[0, 100]} label={{ value: "Human score (%)", position: "bottom", offset: 10 }} />
                   <YAxis type="number" dataKey="y" name="AI %" domain={[0, 100]} label={{ value: "AI score (%)", angle: -90, position: "left" }} />
                   <ZAxis range={[60, 60]} />
-                  <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v: number) => fmt(v, 1) + "%"} />
+                  <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v: any) => fmt(Number(v), 1) + "%"} />
                   <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
                   <Scatter data={scatterData} fill="hsl(var(--primary))" />
                 </ScatterChart>
@@ -268,7 +268,7 @@ function MetricsPage() {
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis type="number" dataKey="fpr" domain={[0, 1]} label={{ value: "False positive rate", position: "bottom", offset: 10 }} />
                     <YAxis type="number" dataKey="tpr" domain={[0, 1]} label={{ value: "True positive rate", angle: -90, position: "left" }} />
-                    <Tooltip formatter={(v: number) => fmt(v, 3)} />
+                    <Tooltip formatter={(v: any) => fmt(Number(v), 3)} />
                     <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke="hsl(var(--muted-foreground))" strokeDasharray="4 4" />
                     <Line type="monotone" dataKey="tpr" stroke="hsl(var(--primary))" dot={false} strokeWidth={2} />
                   </LineChart>
@@ -282,7 +282,7 @@ function MetricsPage() {
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis type="number" dataKey="x" name="Mean" domain={[0, 100]} label={{ value: "Mean of AI & human (%)", position: "bottom", offset: 10 }} />
                     <YAxis type="number" dataKey="y" name="Diff" label={{ value: "AI − human (pts)", angle: -90, position: "left" }} />
-                    <Tooltip formatter={(v: number) => fmt(v, 2)} />
+                    <Tooltip formatter={(v: any) => fmt(Number(v), 2)} />
                     <ReferenceLine y={metrics.regression.meanDiff} stroke="hsl(var(--accent))" strokeDasharray="3 3" label={{ value: "bias", position: "right", fontSize: 10 }} />
                     <ReferenceLine y={metrics.regression.meanDiff + 1.96 * metrics.regression.sdDiff} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
                     <ReferenceLine y={metrics.regression.meanDiff - 1.96 * metrics.regression.sdDiff} stroke="hsl(var(--muted-foreground))" strokeDasharray="2 4" />
@@ -374,7 +374,7 @@ function MetricsPage() {
                     <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
                     <XAxis type="number" label={{ value: "MAE (% points)", position: "bottom", offset: -2 }} />
                     <YAxis type="category" dataKey="question" width={50} />
-                    <Tooltip formatter={(v: number) => fmt(v, 2) + " pts"} />
+                    <Tooltip formatter={(v: any) => fmt(Number(v), 2) + " pts"} />
                     <Legend />
                     <Bar dataKey="mae" name="Mean abs error" fill="hsl(var(--primary))" />
                   </BarChart>
