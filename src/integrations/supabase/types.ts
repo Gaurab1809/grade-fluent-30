@@ -21,6 +21,9 @@ export type Database = {
           extracted_text: string | null
           file_mime: string | null
           file_path: string | null
+          human_max: number | null
+          human_scores: Json | null
+          human_total: number | null
           id: string
           max_score: number | null
           ocr_confidence: number | null
@@ -37,6 +40,9 @@ export type Database = {
           extracted_text?: string | null
           file_mime?: string | null
           file_path?: string | null
+          human_max?: number | null
+          human_scores?: Json | null
+          human_total?: number | null
           id?: string
           max_score?: number | null
           ocr_confidence?: number | null
@@ -53,6 +59,9 @@ export type Database = {
           extracted_text?: string | null
           file_mime?: string | null
           file_path?: string | null
+          human_max?: number | null
+          human_scores?: Json | null
+          human_total?: number | null
           id?: string
           max_score?: number | null
           ocr_confidence?: number | null
