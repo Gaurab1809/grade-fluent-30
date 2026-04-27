@@ -17,6 +17,7 @@ export type Database = {
       evaluations: {
         Row: {
           created_at: string
+          criterion_scores_human: Json | null
           evaluation_json: Json | null
           extracted_text: string | null
           file_mime: string | null
@@ -27,7 +28,10 @@ export type Database = {
           id: string
           max_score: number | null
           ocr_confidence: number | null
+          paper_files: Json | null
+          primary_run_id: string | null
           rubric: string | null
+          split: string | null
           status: string
           title: string
           total_score: number | null
@@ -36,6 +40,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          criterion_scores_human?: Json | null
           evaluation_json?: Json | null
           extracted_text?: string | null
           file_mime?: string | null
@@ -46,7 +51,10 @@ export type Database = {
           id?: string
           max_score?: number | null
           ocr_confidence?: number | null
+          paper_files?: Json | null
+          primary_run_id?: string | null
           rubric?: string | null
+          split?: string | null
           status?: string
           title?: string
           total_score?: number | null
@@ -55,6 +63,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          criterion_scores_human?: Json | null
           evaluation_json?: Json | null
           extracted_text?: string | null
           file_mime?: string | null
@@ -65,7 +74,10 @@ export type Database = {
           id?: string
           max_score?: number | null
           ocr_confidence?: number | null
+          paper_files?: Json | null
+          primary_run_id?: string | null
           rubric?: string | null
+          split?: string | null
           status?: string
           title?: string
           total_score?: number | null
@@ -73,6 +85,59 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      model_runs: {
+        Row: {
+          created_at: string
+          criterion_scores: Json | null
+          error: string | null
+          evaluation_id: string
+          evaluation_json: Json | null
+          id: string
+          latency_ms: number | null
+          max_score: number | null
+          model: string
+          prompt_variant: string
+          total_score: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          criterion_scores?: Json | null
+          error?: string | null
+          evaluation_id: string
+          evaluation_json?: Json | null
+          id?: string
+          latency_ms?: number | null
+          max_score?: number | null
+          model: string
+          prompt_variant?: string
+          total_score?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          criterion_scores?: Json | null
+          error?: string | null
+          evaluation_id?: string
+          evaluation_json?: Json | null
+          id?: string
+          latency_ms?: number | null
+          max_score?: number | null
+          model?: string
+          prompt_variant?: string
+          total_score?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "model_runs_evaluation_id_fkey"
+            columns: ["evaluation_id"]
+            isOneToOne: false
+            referencedRelation: "evaluations"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {

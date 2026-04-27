@@ -1,4 +1,4 @@
-// Parse a teacher's rubric for per-question awarded marks + total via Lovable AI.
+// Parse a teacher's rubric for both per-question AND per-criterion awarded marks via Lovable AI.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.45.0";
 
 const corsHeaders = {
@@ -8,15 +8,15 @@ const corsHeaders = {
 };
 
 const SYSTEM = `You extract a teacher's manually-awarded marks from a rubric document.
-The rubric may be in Bangla, English, or mixed, and may be from Excel, Word, or plain text.
-For each question, identify:
-- question_number (string, e.g. "1", "2a")
-- awarded (number — the marks the teacher actually gave the student)
-- max (number — the maximum marks for that question)
+The rubric may be in Bangla, English, or mixed, and may come from Excel, Word, or plain text.
 
-Also extract the overall total_awarded and total_max if present.
-If the rubric does NOT contain awarded marks (only the scoring scheme), return awarded as null for each question.
-Always return through the provided tool. Do not invent numbers.`;
+Extract:
+1. Per-question marks: question_number, awarded (number or null), max (number).
+2. Per-criterion marks: each individual scoring criterion / sub-mark within a question (e.g. "definition", "example", "diagram"), with question_number, criterion (short label), awarded, max.
+3. Overall total_awarded and total_max if present (compute from question sums if needed).
+
+If the rubric only describes the scheme without awarded marks, set awarded to null. Never invent numbers.
+Always return through the provided tool.`;
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -54,7 +54,6 @@ Deno.serve(async (req) => {
           type: "function",
           function: {
             name: "return_human_scores",
-            description: "Return the teacher's awarded marks parsed from the rubric.",
             parameters: {
               type: "object",
               properties: {
@@ -71,10 +70,24 @@ Deno.serve(async (req) => {
                     additionalProperties: false,
                   },
                 },
+                criteria: {
+                  type: "array",
+                  items: {
+                    type: "object",
+                    properties: {
+                      question_number: { type: "string" },
+                      criterion: { type: "string" },
+                      awarded: { type: ["number", "null"] },
+                      max: { type: "number" },
+                    },
+                    required: ["question_number", "criterion", "awarded", "max"],
+                    additionalProperties: false,
+                  },
+                },
                 total_awarded: { type: ["number", "null"] },
                 total_max: { type: ["number", "null"] },
               },
-              required: ["questions", "total_awarded", "total_max"],
+              required: ["questions", "criteria", "total_awarded", "total_max"],
               additionalProperties: false,
             },
           },
@@ -102,7 +115,6 @@ Deno.serve(async (req) => {
     const args = call ? JSON.parse(call.function.arguments) : null;
     if (!args) throw new Error("Model returned no parse");
 
-    // Compute total from questions if AI didn't surface one
     let total_awarded = args.total_awarded;
     let total_max = args.total_max;
     if (total_awarded == null) {
@@ -117,6 +129,7 @@ Deno.serve(async (req) => {
       .from("evaluations")
       .update({
         human_scores: args.questions,
+        criterion_scores_human: args.criteria,
         human_total: total_awarded,
         human_max: total_max,
       })
@@ -124,7 +137,7 @@ Deno.serve(async (req) => {
     if (upErr) throw upErr;
 
     return new Response(JSON.stringify({
-      questions: args.questions, total_awarded, total_max,
+      questions: args.questions, criteria: args.criteria, total_awarded, total_max,
     }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (e) {
     console.error("parse-rubric-scores error:", e);
