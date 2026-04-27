@@ -109,8 +109,11 @@ function Workspace() {
   }, [user, loading, navigate]);
 
   // Materialise pendingFiles -> papers whenever the user adds/removes files or switches mode.
+  // Guarded against infinite loops by reading `papers` via a ref.
+  const papersRef = useRef(papers);
+  papersRef.current = papers;
   useEffect(() => {
-    if (papers.some((p) => p.evaluationId)) return; // don't disturb after extraction
+    if (papersRef.current.some((p) => p.evaluationId)) return; // don't disturb after extraction
     if (pendingFiles.length === 0) {
       setPapers([]);
       setActivePaperIdx(0);
@@ -129,7 +132,7 @@ function Workspace() {
       setPapers(pendingFiles.map((f) => newPaper([f], f.name)));
     }
     setActivePaperIdx(0);
-  }, [pendingFiles, uploadMode, papers]);
+  }, [pendingFiles, uploadMode]);
 
   const updatePaper = (idx: number, patch: Partial<Paper>) => {
     setPapers((ps) => ps.map((p, i) => (i === idx ? { ...p, ...patch } : p)));
