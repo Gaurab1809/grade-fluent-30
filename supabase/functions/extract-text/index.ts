@@ -123,18 +123,54 @@ Deno.serve(async (req) => {
     }
 
     const transcripts: { name: string; markdown: string; confidence: number }[] = [];
+    const failures: { name: string; error: string }[] = [];
+    let fatalStatus: number | null = null;
+    let fatalMessage: string | null = null;
+
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const { data: file, error: dlErr } = await admin.storage.from("exam-papers").download(f.path);
-      if (dlErr || !file) throw new Error(`Download failed for ${f.path}: ${dlErr?.message}`);
+      if (dlErr || !file) {
+        failures.push({ name: f.name ?? `Page ${i + 1}`, error: `Download failed: ${dlErr?.message ?? "unknown"}` });
+        continue;
+      }
       const buf = new Uint8Array(await file.arrayBuffer());
       let binary = "";
       for (let j = 0; j < buf.length; j++) binary += String.fromCharCode(buf[j]);
       const b64 = btoa(binary);
       const mime = f.mime || file.type || "application/octet-stream";
       const dataUrl = `data:${mime};base64,${b64}`;
-      const t = await transcribeOne(dataUrl, LOVABLE_API_KEY);
-      transcripts.push({ name: f.name ?? `Page ${i + 1}`, markdown: t.markdown, confidence: t.confidence });
+      try {
+        const t = await transcribeOne(dataUrl, LOVABLE_API_KEY);
+        transcripts.push({ name: f.name ?? `Page ${i + 1}`, markdown: t.markdown, confidence: t.confidence });
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        // 402 (no credits) is fatal — stop early
+        if (status === 402) { fatalStatus = 402; fatalMessage = msg; break; }
+        failures.push({ name: f.name ?? `Page ${i + 1}`, error: msg });
+      }
+      // Small spacing between pages to ease rate limiting
+      if (i < files.length - 1) await new Promise((r) => setTimeout(r, 600));
+    }
+
+    if (fatalStatus) {
+      return new Response(JSON.stringify({ error: fatalMessage }), {
+        status: fatalStatus, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (transcripts.length === 0) {
+      // All pages failed — surface a 429-style error so the UI can show a friendly toast
+      const allRateLimited = failures.every((f) => /rate limit/i.test(f.error));
+      return new Response(
+        JSON.stringify({
+          error: allRateLimited
+            ? "Rate limit exceeded. Please wait a few seconds and try again."
+            : `Transcription failed for all pages: ${failures.map((f) => `${f.name}: ${f.error}`).join("; ")}`,
+        }),
+        { status: allRateLimited ? 429 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const combined = transcripts.length === 1
@@ -153,7 +189,12 @@ Deno.serve(async (req) => {
     if (upErr) throw upErr;
 
     return new Response(
-      JSON.stringify({ markdown: combined, confidence: avgConf, pages: transcripts.length }),
+      JSON.stringify({
+        markdown: combined,
+        confidence: avgConf,
+        pages: transcripts.length,
+        failed_pages: failures,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
