@@ -23,50 +23,67 @@ Rules:
 
 Always finish by returning the result through the provided tool. Estimate confidence as a number 0–1.`;
 
-async function transcribeOne(dataUrl: string, apiKey: string) {
-  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Transcribe this handwritten exam page." },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      tools: [{
-        type: "function",
-        function: {
-          name: "return_transcription",
-          parameters: {
-            type: "object",
-            properties: {
-              markdown: { type: "string" },
-              language: { type: "string", enum: ["bangla", "english", "mixed"] },
-              confidence: { type: "number" },
-            },
-            required: ["markdown", "language", "confidence"],
-            additionalProperties: false,
+async function transcribeOne(dataUrl: string, apiKey: string, maxAttempts = 4) {
+  let lastErr: { status: number; message: string } | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Transcribe this handwritten exam page." },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
           },
-        },
-      }],
-      tool_choice: { type: "function", function: { name: "return_transcription" } },
-    }),
-  });
-  if (!aiRes.ok) {
-    if (aiRes.status === 429) throw new Error("Rate limit exceeded.");
-    if (aiRes.status === 402) throw new Error("AI credits exhausted.");
-    throw new Error(`AI gateway error: ${aiRes.status}`);
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "return_transcription",
+            parameters: {
+              type: "object",
+              properties: {
+                markdown: { type: "string" },
+                language: { type: "string", enum: ["bangla", "english", "mixed"] },
+                confidence: { type: "number" },
+              },
+              required: ["markdown", "language", "confidence"],
+              additionalProperties: false,
+            },
+          },
+        }],
+        tool_choice: { type: "function", function: { name: "return_transcription" } },
+      }),
+    });
+    if (aiRes.ok) {
+      const json = await aiRes.json();
+      const call = json?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!call) throw new Error("Model returned no transcription");
+      return JSON.parse(call.function.arguments) as { markdown: string; language: string; confidence: number };
+    }
+    // Non-OK: decide retry vs bail
+    if (aiRes.status === 402) {
+      lastErr = { status: 402, message: "AI credits exhausted." };
+      break;
+    }
+    const retriable = aiRes.status === 429 || aiRes.status >= 500;
+    lastErr = {
+      status: aiRes.status,
+      message: aiRes.status === 429 ? "Rate limit exceeded." : `AI gateway error: ${aiRes.status}`,
+    };
+    if (!retriable || attempt === maxAttempts) break;
+    // Exponential backoff with jitter: ~2s, 4s, 8s
+    const delay = Math.min(8000, 1000 * 2 ** attempt) + Math.random() * 500;
+    await new Promise((r) => setTimeout(r, delay));
   }
-  const json = await aiRes.json();
-  const call = json?.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("Model returned no transcription");
-  return JSON.parse(call.function.arguments) as { markdown: string; language: string; confidence: number };
+  const err = new Error(lastErr?.message ?? "AI gateway error") as Error & { status?: number };
+  err.status = lastErr?.status;
+  throw err;
 }
 
 Deno.serve(async (req) => {
@@ -106,18 +123,54 @@ Deno.serve(async (req) => {
     }
 
     const transcripts: { name: string; markdown: string; confidence: number }[] = [];
+    const failures: { name: string; error: string }[] = [];
+    let fatalStatus: number | null = null;
+    let fatalMessage: string | null = null;
+
     for (let i = 0; i < files.length; i++) {
       const f = files[i];
       const { data: file, error: dlErr } = await admin.storage.from("exam-papers").download(f.path);
-      if (dlErr || !file) throw new Error(`Download failed for ${f.path}: ${dlErr?.message}`);
+      if (dlErr || !file) {
+        failures.push({ name: f.name ?? `Page ${i + 1}`, error: `Download failed: ${dlErr?.message ?? "unknown"}` });
+        continue;
+      }
       const buf = new Uint8Array(await file.arrayBuffer());
       let binary = "";
       for (let j = 0; j < buf.length; j++) binary += String.fromCharCode(buf[j]);
       const b64 = btoa(binary);
       const mime = f.mime || file.type || "application/octet-stream";
       const dataUrl = `data:${mime};base64,${b64}`;
-      const t = await transcribeOne(dataUrl, LOVABLE_API_KEY);
-      transcripts.push({ name: f.name ?? `Page ${i + 1}`, markdown: t.markdown, confidence: t.confidence });
+      try {
+        const t = await transcribeOne(dataUrl, LOVABLE_API_KEY);
+        transcripts.push({ name: f.name ?? `Page ${i + 1}`, markdown: t.markdown, confidence: t.confidence });
+      } catch (err) {
+        const status = (err as { status?: number }).status;
+        const msg = err instanceof Error ? err.message : "Unknown error";
+        // 402 (no credits) is fatal — stop early
+        if (status === 402) { fatalStatus = 402; fatalMessage = msg; break; }
+        failures.push({ name: f.name ?? `Page ${i + 1}`, error: msg });
+      }
+      // Small spacing between pages to ease rate limiting
+      if (i < files.length - 1) await new Promise((r) => setTimeout(r, 600));
+    }
+
+    if (fatalStatus) {
+      return new Response(JSON.stringify({ error: fatalMessage }), {
+        status: fatalStatus, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (transcripts.length === 0) {
+      // All pages failed — surface a 429-style error so the UI can show a friendly toast
+      const allRateLimited = failures.every((f) => /rate limit/i.test(f.error));
+      return new Response(
+        JSON.stringify({
+          error: allRateLimited
+            ? "Rate limit exceeded. Please wait a few seconds and try again."
+            : `Transcription failed for all pages: ${failures.map((f) => `${f.name}: ${f.error}`).join("; ")}`,
+        }),
+        { status: allRateLimited ? 429 : 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     const combined = transcripts.length === 1
@@ -136,7 +189,12 @@ Deno.serve(async (req) => {
     if (upErr) throw upErr;
 
     return new Response(
-      JSON.stringify({ markdown: combined, confidence: avgConf, pages: transcripts.length }),
+      JSON.stringify({
+        markdown: combined,
+        confidence: avgConf,
+        pages: transcripts.length,
+        failed_pages: failures,
+      }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   } catch (e) {
