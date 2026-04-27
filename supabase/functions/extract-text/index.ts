@@ -23,50 +23,67 @@ Rules:
 
 Always finish by returning the result through the provided tool. Estimate confidence as a number 0–1.`;
 
-async function transcribeOne(dataUrl: string, apiKey: string) {
-  const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-    method: "POST",
-    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
-      model: "google/gemini-2.5-flash",
-      messages: [
-        { role: "system", content: SYSTEM },
-        {
-          role: "user",
-          content: [
-            { type: "text", text: "Transcribe this handwritten exam page." },
-            { type: "image_url", image_url: { url: dataUrl } },
-          ],
-        },
-      ],
-      tools: [{
-        type: "function",
-        function: {
-          name: "return_transcription",
-          parameters: {
-            type: "object",
-            properties: {
-              markdown: { type: "string" },
-              language: { type: "string", enum: ["bangla", "english", "mixed"] },
-              confidence: { type: "number" },
-            },
-            required: ["markdown", "language", "confidence"],
-            additionalProperties: false,
+async function transcribeOne(dataUrl: string, apiKey: string, maxAttempts = 4) {
+  let lastErr: { status: number; message: string } | null = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model: "google/gemini-2.5-flash",
+        messages: [
+          { role: "system", content: SYSTEM },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Transcribe this handwritten exam page." },
+              { type: "image_url", image_url: { url: dataUrl } },
+            ],
           },
-        },
-      }],
-      tool_choice: { type: "function", function: { name: "return_transcription" } },
-    }),
-  });
-  if (!aiRes.ok) {
-    if (aiRes.status === 429) throw new Error("Rate limit exceeded.");
-    if (aiRes.status === 402) throw new Error("AI credits exhausted.");
-    throw new Error(`AI gateway error: ${aiRes.status}`);
+        ],
+        tools: [{
+          type: "function",
+          function: {
+            name: "return_transcription",
+            parameters: {
+              type: "object",
+              properties: {
+                markdown: { type: "string" },
+                language: { type: "string", enum: ["bangla", "english", "mixed"] },
+                confidence: { type: "number" },
+              },
+              required: ["markdown", "language", "confidence"],
+              additionalProperties: false,
+            },
+          },
+        }],
+        tool_choice: { type: "function", function: { name: "return_transcription" } },
+      }),
+    });
+    if (aiRes.ok) {
+      const json = await aiRes.json();
+      const call = json?.choices?.[0]?.message?.tool_calls?.[0];
+      if (!call) throw new Error("Model returned no transcription");
+      return JSON.parse(call.function.arguments) as { markdown: string; language: string; confidence: number };
+    }
+    // Non-OK: decide retry vs bail
+    if (aiRes.status === 402) {
+      lastErr = { status: 402, message: "AI credits exhausted." };
+      break;
+    }
+    const retriable = aiRes.status === 429 || aiRes.status >= 500;
+    lastErr = {
+      status: aiRes.status,
+      message: aiRes.status === 429 ? "Rate limit exceeded." : `AI gateway error: ${aiRes.status}`,
+    };
+    if (!retriable || attempt === maxAttempts) break;
+    // Exponential backoff with jitter: ~2s, 4s, 8s
+    const delay = Math.min(8000, 1000 * 2 ** attempt) + Math.random() * 500;
+    await new Promise((r) => setTimeout(r, delay));
   }
-  const json = await aiRes.json();
-  const call = json?.choices?.[0]?.message?.tool_calls?.[0];
-  if (!call) throw new Error("Model returned no transcription");
-  return JSON.parse(call.function.arguments) as { markdown: string; language: string; confidence: number };
+  const err = new Error(lastErr?.message ?? "AI gateway error") as Error & { status?: number };
+  err.status = lastErr?.status;
+  throw err;
 }
 
 Deno.serve(async (req) => {
