@@ -366,6 +366,8 @@ function Workspace() {
     const { error } = await supabase.from("evaluations").update({ split }).eq("id", paper.evaluationId);
     if (error) toast.error(error.message);
   };
+
+  const downloadReport = (idx: number) => {
     const paper = papers[idx];
     const active = paper?.runs.find((r) => r.model === paper.activeModel)?.data;
     if (!active || !paper) return;
