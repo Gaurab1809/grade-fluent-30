@@ -16,11 +16,25 @@ import {
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 
-// ---------- Models ----------
+// ---------- Models & Prompt Variants ----------
 type ModelOption = { id: string; label: string; short: string };
 const MODELS: ModelOption[] = [
   { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", short: "Gemini" },
   { id: "openai/gpt-5-mini",       label: "GPT-5 Mini",       short: "GPT-5" },
+];
+type VariantOption = { id: string; label: string; hint: string };
+const VARIANTS: VariantOption[] = [
+  { id: "baseline", label: "Baseline",  hint: "Default fair grading" },
+  { id: "strict",   label: "Strict",    hint: "Penalize gaps, no rounding up" },
+  { id: "lenient",  label: "Lenient",   hint: "Reward partial understanding" },
+  { id: "few-shot", label: "Few-shot",  hint: "Calibrate using train-split examples" },
+];
+type Split = "unassigned" | "train" | "val" | "test";
+const SPLITS: { id: Split; label: string }[] = [
+  { id: "unassigned", label: "—" },
+  { id: "train", label: "Train" },
+  { id: "val",   label: "Val" },
+  { id: "test",  label: "Test" },
 ];
 
 async function parseRubricFile(file: File): Promise<string> {
@@ -72,6 +86,7 @@ type Paper = {
   runs: ModelRunResult[];
   activeModel: string | null;
   stage: Stage;
+  split: Split;
 };
 
 function newPaper(files: File[], title?: string): Paper {
@@ -85,6 +100,7 @@ function newPaper(files: File[], title?: string): Paper {
     runs: [],
     activeModel: null,
     stage: "idle",
+    split: "unassigned",
   };
 }
 
@@ -99,6 +115,7 @@ function Workspace() {
 
   const [rubric, setRubric] = useState<string>("");
   const [selectedModels, setSelectedModels] = useState<string[]>(MODELS.map((m) => m.id));
+  const [promptVariant, setPromptVariant] = useState<string>("baseline");
   const [humanCriteria, setHumanCriteria] = useState<HumanCriterion[] | undefined>(undefined);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
@@ -171,6 +188,7 @@ function Workspace() {
       runs: loaded,
       activeModel: loaded.find((r) => r.data)?.model ?? null,
       stage: loaded.length ? "evaluated" : data.extracted_text ? "extracted" : "idle",
+      split: ((data.split as Split) ?? "unassigned"),
     };
     setPapers([restored]);
     setActivePaperIdx(0);
@@ -251,7 +269,7 @@ function Workspace() {
               extractedText: paper.extracted,
               rubric,
               model,
-              promptVariant: "baseline",
+              promptVariant,
             },
           });
           if (error) throw error;
@@ -339,6 +357,14 @@ function Workspace() {
       evaluation_json: row.evaluation_json,
     }).eq("id", paper.evaluationId);
     toast.success(`${MODELS.find((m) => m.id === model)?.short ?? model} set as primary.`);
+  };
+
+  const setPaperSplit = async (idx: number, split: Split) => {
+    const paper = papers[idx];
+    updatePaper(idx, { split });
+    if (!paper?.evaluationId) return;
+    const { error } = await supabase.from("evaluations").update({ split }).eq("id", paper.evaluationId);
+    if (error) toast.error(error.message);
   };
 
   const downloadReport = (idx: number) => {
@@ -535,6 +561,42 @@ function Workspace() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Step 4 · Prompt variant
+              </Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {VARIANTS.map((v) => {
+                  const on = promptVariant === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setPromptVariant(v.id)}
+                      title={v.hint}
+                      className={
+                        "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors text-left " +
+                        (on
+                          ? "bg-accent text-accent-foreground border-accent"
+                          : "bg-card text-muted-foreground border-border hover:border-foreground/30")
+                      }
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {on && <Check className="h-3 w-3" />}
+                        {v.label}
+                      </div>
+                      <div className="text-[10px] opacity-70 mt-0.5 leading-tight">{v.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {promptVariant === "few-shot" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Uses up to 3 papers tagged <span className="font-medium text-foreground">Train</span> as examples.
+                </p>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2">
               <Button
                 onClick={onExtractAll}
@@ -635,14 +697,38 @@ function Workspace() {
                         </span>
                       )}
                     </div>
-                    {activePaper.extracted && (
-                      <Button
-                        variant="ghost" size="sm"
-                        onClick={() => { navigator.clipboard.writeText(activePaper.extracted); toast.success("Copied"); }}
-                      >
-                        Copy
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {activePaper.evaluationId && (
+                        <div className="flex items-center gap-1 rounded-md border border-border p-0.5 text-[11px]">
+                          {SPLITS.map((s) => {
+                            const on = activePaper.split === s.id;
+                            return (
+                              <button
+                                key={s.id}
+                                onClick={() => setPaperSplit(activePaperIdx, s.id)}
+                                title={`Tag this paper as ${s.label}`}
+                                className={
+                                  "px-2 py-0.5 rounded transition-colors " +
+                                  (on
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:text-foreground")
+                                }
+                              >
+                                {s.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {activePaper.extracted && (
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={() => { navigator.clipboard.writeText(activePaper.extracted); toast.success("Copied"); }}
+                        >
+                          Copy
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="p-5 min-h-[200px]">
                     {!activePaper.extracted && activePaper.stage === "idle" && <EmptyState />}
