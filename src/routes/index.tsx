@@ -115,6 +115,7 @@ function Workspace() {
 
   const [rubric, setRubric] = useState<string>("");
   const [selectedModels, setSelectedModels] = useState<string[]>(MODELS.map((m) => m.id));
+  const [promptVariant, setPromptVariant] = useState<string>("baseline");
   const [humanCriteria, setHumanCriteria] = useState<HumanCriterion[] | undefined>(undefined);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [batchBusy, setBatchBusy] = useState(false);
@@ -268,7 +269,7 @@ function Workspace() {
               extractedText: paper.extracted,
               rubric,
               model,
-              promptVariant: "baseline",
+              promptVariant,
             },
           });
           if (error) throw error;
