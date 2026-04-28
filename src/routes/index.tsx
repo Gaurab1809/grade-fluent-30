@@ -62,7 +62,9 @@ async function parseRubricFile(file: File): Promise<string> {
 }
 
 export const Route = createFileRoute("/")({
-  component: Workspace,
+  component: function RouteComponent() {
+    return <Workspace />;
+  },
 });
 
 type Stage = "idle" | "extracting" | "extracted" | "evaluating" | "evaluated";
