@@ -561,6 +561,42 @@ function Workspace() {
               </div>
             </div>
 
+            <div className="space-y-2">
+              <Label className="text-xs uppercase tracking-wider text-muted-foreground">
+                Step 4 · Prompt variant
+              </Label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {VARIANTS.map((v) => {
+                  const on = promptVariant === v.id;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => setPromptVariant(v.id)}
+                      title={v.hint}
+                      className={
+                        "px-2.5 py-1.5 rounded-md text-xs font-medium border transition-colors text-left " +
+                        (on
+                          ? "bg-accent text-accent-foreground border-accent"
+                          : "bg-card text-muted-foreground border-border hover:border-foreground/30")
+                      }
+                    >
+                      <div className="flex items-center gap-1.5">
+                        {on && <Check className="h-3 w-3" />}
+                        {v.label}
+                      </div>
+                      <div className="text-[10px] opacity-70 mt-0.5 leading-tight">{v.hint}</div>
+                    </button>
+                  );
+                })}
+              </div>
+              {promptVariant === "few-shot" && (
+                <p className="text-[11px] text-muted-foreground">
+                  Uses up to 3 papers tagged <span className="font-medium text-foreground">Train</span> as examples.
+                </p>
+              )}
+            </div>
+
             <div className="flex flex-col gap-2">
               <Button
                 onClick={onExtractAll}
