@@ -359,7 +359,13 @@ function Workspace() {
     toast.success(`${MODELS.find((m) => m.id === model)?.short ?? model} set as primary.`);
   };
 
-  const downloadReport = (idx: number) => {
+  const setPaperSplit = async (idx: number, split: Split) => {
+    const paper = papers[idx];
+    updatePaper(idx, { split });
+    if (!paper?.evaluationId) return;
+    const { error } = await supabase.from("evaluations").update({ split }).eq("id", paper.evaluationId);
+    if (error) toast.error(error.message);
+  };
     const paper = papers[idx];
     const active = paper?.runs.find((r) => r.model === paper.activeModel)?.data;
     if (!active || !paper) return;
