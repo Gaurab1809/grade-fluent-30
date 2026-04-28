@@ -187,6 +187,7 @@ function Workspace() {
       runs: loaded,
       activeModel: loaded.find((r) => r.data)?.model ?? null,
       stage: loaded.length ? "evaluated" : data.extracted_text ? "extracted" : "idle",
+      split: ((data.split as Split) ?? "unassigned"),
     };
     setPapers([restored]);
     setActivePaperIdx(0);
