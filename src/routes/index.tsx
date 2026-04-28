@@ -62,6 +62,7 @@ async function parseRubricFile(file: File): Promise<string> {
 }
 
 export const Route = createFileRoute("/")({
+  codeSplitGroupings: [],
   component: Workspace,
 });
 
@@ -850,3 +851,4 @@ function SkeletonBlock({ label }: { label: string }) {
     </div>
   );
 }
+
