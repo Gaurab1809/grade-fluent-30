@@ -697,14 +697,38 @@ function Workspace() {
                         </span>
                       )}
                     </div>
-                    {activePaper.extracted && (
-                      <Button
-                        variant="ghost" size="sm"
-                        onClick={() => { navigator.clipboard.writeText(activePaper.extracted); toast.success("Copied"); }}
-                      >
-                        Copy
-                      </Button>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {activePaper.evaluationId && (
+                        <div className="flex items-center gap-1 rounded-md border border-border p-0.5 text-[11px]">
+                          {SPLITS.map((s) => {
+                            const on = activePaper.split === s.id;
+                            return (
+                              <button
+                                key={s.id}
+                                onClick={() => setPaperSplit(activePaperIdx, s.id)}
+                                title={`Tag this paper as ${s.label}`}
+                                className={
+                                  "px-2 py-0.5 rounded transition-colors " +
+                                  (on
+                                    ? "bg-primary text-primary-foreground"
+                                    : "text-muted-foreground hover:text-foreground")
+                                }
+                              >
+                                {s.label}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
+                      {activePaper.extracted && (
+                        <Button
+                          variant="ghost" size="sm"
+                          onClick={() => { navigator.clipboard.writeText(activePaper.extracted); toast.success("Copied"); }}
+                        >
+                          Copy
+                        </Button>
+                      )}
+                    </div>
                   </div>
                   <div className="p-5 min-h-[200px]">
                     {!activePaper.extracted && activePaper.stage === "idle" && <EmptyState />}
