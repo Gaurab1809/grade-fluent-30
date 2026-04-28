@@ -45,13 +45,33 @@ Deno.serve(async (req) => {
       rubric,
       model = "google/gemini-2.5-flash",
       promptVariant = "baseline",
-      fewShotExamples = [], // [{rubric, transcript, criterion_scores}]
     } = await req.json();
     if (!evaluationId || !extractedText || !rubric) throw new Error("Missing evaluationId, extractedText, or rubric");
 
+    // Fetch few-shot examples from train-split papers (with both rubric+transcript+human criterion scores)
+    let fewShotExamples: { rubric: string; transcript: string; criterion_scores: unknown }[] = [];
+    if (promptVariant === "few-shot") {
+      const { data: trainRows } = await supabase
+        .from("evaluations")
+        .select("rubric, extracted_text, criterion_scores_human, human_scores")
+        .eq("user_id", userData.user.id)
+        .eq("split", "train")
+        .neq("id", evaluationId)
+        .not("rubric", "is", null)
+        .not("extracted_text", "is", null)
+        .limit(3);
+      fewShotExamples = (trainRows ?? [])
+        .filter((r) => r.criterion_scores_human || r.human_scores)
+        .map((r) => ({
+          rubric: r.rubric as string,
+          transcript: (r.extracted_text as string).slice(0, 2000),
+          criterion_scores: r.criterion_scores_human ?? r.human_scores,
+        }));
+    }
+
     let systemPrompt = SYSTEM_BASE;
     if (promptVariant === "few-shot" && fewShotExamples.length > 0) {
-      systemPrompt += FEW_SHOT_HEADER + fewShotExamples.slice(0, 3).map((ex: any, i: number) =>
+      systemPrompt += FEW_SHOT_HEADER + fewShotExamples.map((ex, i) =>
         `--- EXAMPLE ${i + 1} ---\nRUBRIC:\n${ex.rubric}\n\nSTUDENT TRANSCRIPT:\n${ex.transcript}\n\nTEACHER'S CRITERION SCORES:\n${JSON.stringify(ex.criterion_scores, null, 2)}`
       ).join("\n\n");
     }
