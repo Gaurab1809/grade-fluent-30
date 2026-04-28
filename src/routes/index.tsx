@@ -16,11 +16,25 @@ import {
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
 
-// ---------- Models ----------
+// ---------- Models & Prompt Variants ----------
 type ModelOption = { id: string; label: string; short: string };
 const MODELS: ModelOption[] = [
   { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash", short: "Gemini" },
   { id: "openai/gpt-5-mini",       label: "GPT-5 Mini",       short: "GPT-5" },
+];
+type VariantOption = { id: string; label: string; hint: string };
+const VARIANTS: VariantOption[] = [
+  { id: "baseline", label: "Baseline",  hint: "Default fair grading" },
+  { id: "strict",   label: "Strict",    hint: "Penalize gaps, no rounding up" },
+  { id: "lenient",  label: "Lenient",   hint: "Reward partial understanding" },
+  { id: "few-shot", label: "Few-shot",  hint: "Calibrate using train-split examples" },
+];
+type Split = "unassigned" | "train" | "val" | "test";
+const SPLITS: { id: Split; label: string }[] = [
+  { id: "unassigned", label: "—" },
+  { id: "train", label: "Train" },
+  { id: "val",   label: "Val" },
+  { id: "test",  label: "Test" },
 ];
 
 async function parseRubricFile(file: File): Promise<string> {
