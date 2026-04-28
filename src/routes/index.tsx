@@ -86,6 +86,7 @@ type Paper = {
   runs: ModelRunResult[];
   activeModel: string | null;
   stage: Stage;
+  split: Split;
 };
 
 function newPaper(files: File[], title?: string): Paper {
@@ -99,6 +100,7 @@ function newPaper(files: File[], title?: string): Paper {
     runs: [],
     activeModel: null,
     stage: "idle",
+    split: "unassigned",
   };
 }
 
