@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useTheme } from "@/lib/theme";
 import { useAuth } from "@/lib/auth";
-import { Moon, Sun, BookOpenCheck, LogOut, History, BarChart3 } from "lucide-react";
+import { Moon, Sun, BookOpenCheck, LogOut, History, BarChart3, GraduationCap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function TopBar({ onOpenHistory }: { onOpenHistory?: () => void }) {
@@ -22,6 +22,11 @@ export function TopBar({ onOpenHistory }: { onOpenHistory?: () => void }) {
               <History className="h-4 w-4 mr-1.5" /> History
             </Button>
           )}
+          <Link to="/training">
+            <Button variant="ghost" size="sm">
+              <GraduationCap className="h-4 w-4 mr-1.5" /> Training
+            </Button>
+          </Link>
           <Link to="/metrics">
             <Button variant="ghost" size="sm">
               <BarChart3 className="h-4 w-4 mr-1.5" /> Metrics
