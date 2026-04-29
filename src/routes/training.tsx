@@ -35,6 +35,52 @@ type LabeledPaper = {
   error?: string;
 };
 
+function getFunctionErrorMessage(error: unknown) {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return "Unknown error";
+  }
+}
+
+function isRateLimitError(error: unknown) {
+  return /rate limit|429/i.test(getFunctionErrorMessage(error));
+}
+
+function isCreditsExhaustedError(error: unknown) {
+  return /credits exhausted|402/i.test(getFunctionErrorMessage(error));
+}
+
+async function sleep(ms: number) {
+  await new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function invokeWithBackoff<T>(
+  name: string,
+  body: unknown,
+  options?: { maxAttempts?: number; baseDelayMs?: number },
+) {
+  const maxAttempts = options?.maxAttempts ?? 4;
+  const baseDelayMs = options?.baseDelayMs ?? 2500;
+
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const { data, error } = await supabase.functions.invoke(name, { body });
+    if (!error && !data?.error) return data as T;
+
+    lastError = error ?? new Error(data?.error ?? "Unknown function error");
+    if (isCreditsExhaustedError(lastError)) throw lastError;
+    if (!isRateLimitError(lastError) || attempt === maxAttempts) throw lastError;
+
+    const jitter = Math.floor(Math.random() * 600);
+    await sleep(baseDelayMs * 2 ** (attempt - 1) + jitter);
+  }
+
+  throw lastError ?? new Error("Function call failed");
+}
+
 async function parseRubricFile(file: File): Promise<string> {
   const name = file.name.toLowerCase();
   if (name.endsWith(".txt") || name.endsWith(".md") || file.type.startsWith("text/")) return await file.text();
@@ -186,35 +232,18 @@ function TrainingPage() {
       if (insErr || !ins) throw insErr ?? new Error("Failed to create record");
 
       updatePaper(paper.localId, { evaluationId: ins.id, stage: "extracting" });
-      const { data, error } = await supabase.functions.invoke("extract-text", {
-        body: { evaluationId: ins.id, files: uploaded },
+      await invokeWithBackoff("extract-text", { evaluationId: ins.id, files: uploaded }, {
+        maxAttempts: 5,
+        baseDelayMs: 3000,
       });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
 
       updatePaper(paper.localId, { stage: "ready" });
       return ins.id;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : "Failed";
+      const msg = getFunctionErrorMessage(e);
       updatePaper(paper.localId, { stage: "error", error: msg });
       return null;
     }
-  };
-
-  // Run ALL models × {baseline, few-shot} on val+test papers (calibration sweep)
-  const evaluateOne = async (paper: LabeledPaper, model: string, variant: string) => {
-    if (!paper.evaluationId) return;
-    const { data, error } = await supabase.functions.invoke("evaluate-paper", {
-      body: {
-        evaluationId: paper.evaluationId,
-        extractedText: "", // backend pulls latest from evaluations row if empty? — we send rubric+text from DB
-        rubric,
-        model,
-        promptVariant: variant,
-      },
-    });
-    if (error) throw error;
-    if (data?.error) throw new Error(data.error);
   };
 
   const startCalibration = async () => {
@@ -265,7 +294,10 @@ function TrainingPage() {
       setProgress({ done: 0, total: totalEvals, label: "Running calibration" });
 
       let evalDone = 0;
+      let creditsExhausted = false;
+      let rateLimitHits = 0;
       for (const tgt of evalTargets) {
+        if (creditsExhausted) break;
         const row = byId.get(tgt.id);
         if (!row?.extracted_text) {
           evalDone += MODELS.length * variants.length;
@@ -276,35 +308,53 @@ function TrainingPage() {
         updatePaper(tgt.paper.localId, { stage: "evaluating" });
 
         for (const model of MODELS) {
+          if (creditsExhausted) break;
           for (const variant of variants) {
             try {
-              const { data, error } = await supabase.functions.invoke("evaluate-paper", {
-                body: {
-                  evaluationId: tgt.id,
-                  extractedText: row.extracted_text,
-                  rubric: row.rubric ?? rubric,
-                  model: model.id,
-                  promptVariant: variant,
-                },
+              await invokeWithBackoff("evaluate-paper", {
+                evaluationId: tgt.id,
+                extractedText: row.extracted_text,
+                rubric: row.rubric ?? rubric,
+                model: model.id,
+                promptVariant: variant,
+              }, {
+                maxAttempts: 4,
+                baseDelayMs: 3500,
               });
-              if (error) throw error;
-              if (data?.error) throw new Error(data.error);
             } catch (e) {
+              if (isCreditsExhaustedError(e)) {
+                creditsExhausted = true;
+                updatePaper(tgt.paper.localId, {
+                  stage: "error",
+                  error: "AI credits exhausted. Add balance, then retry calibration.",
+                });
+                break;
+              }
+              if (isRateLimitError(e)) rateLimitHits += 1;
               console.warn(`Eval failed for ${tgt.paper.title} ${model.id}/${variant}:`, e);
             }
             evalDone++;
             setProgress({ done: evalDone, total: totalEvals, label: "Running calibration" });
-            // Small spacing between AI calls to ease rate limiting
-            await new Promise((r) => setTimeout(r, 800));
+            await sleep(2200 + rateLimitHits * 400);
           }
         }
-        updatePaper(tgt.paper.localId, { stage: "done" });
+        if (!creditsExhausted) updatePaper(tgt.paper.localId, { stage: "done" });
       }
 
       // Mark train papers done
       ids.filter((x) => x.paper.split === "train").forEach((x) =>
         updatePaper(x.paper.localId, { stage: "done" }),
       );
+
+      if (creditsExhausted) {
+        toast.error("Calibration stopped because AI credits are exhausted.");
+        return;
+      }
+
+      if (rateLimitHits > 0) {
+        toast.success(`Calibration finished with retry throttling after ${rateLimitHits} rate-limit hit${rateLimitHits === 1 ? "" : "s"}.`);
+        return;
+      }
 
       toast.success(`Calibration complete. ${evalTargets.length} papers × ${MODELS.length} models × 2 variants.`);
     } catch (e) {
