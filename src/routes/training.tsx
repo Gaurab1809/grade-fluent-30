@@ -59,7 +59,7 @@ async function sleep(ms: number) {
 
 async function invokeWithBackoff<T>(
   name: string,
-  body: unknown,
+  body: Record<string, unknown>,
   options?: { maxAttempts?: number; baseDelayMs?: number },
 ) {
   const maxAttempts = options?.maxAttempts ?? 4;
