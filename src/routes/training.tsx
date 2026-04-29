@@ -41,13 +41,34 @@ async function parseRubricFile(file: File): Promise<string> {
   if (name.endsWith(".xlsx") || name.endsWith(".xls") || name.endsWith(".csv")) {
     const buf = await file.arrayBuffer();
     const wb = XLSX.read(buf, { type: "array" });
-    return wb.SheetNames.map((s) => XLSX.utils.sheet_to_csv(wb.Sheets[s]).trim()).filter(Boolean).join("\n\n");
+    // Label each sheet so the AI can locate "page 2"-style sections
+    return wb.SheetNames
+      .map((s, i) => {
+        const csv = XLSX.utils.sheet_to_csv(wb.Sheets[s]).trim();
+        return csv ? `--- Sheet ${i + 1}: ${s} ---\n${csv}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
   }
   if (name.endsWith(".docx")) {
     const { value } = await mammoth.extractRawText({ arrayBuffer: await file.arrayBuffer() });
     return value.trim();
   }
-  throw new Error("Unsupported rubric file type");
+  if (name.endsWith(".pdf")) {
+    const buf = new Uint8Array(await file.arrayBuffer());
+    const pdf = await getDocumentProxy(buf);
+    // mergePages:false returns an array of per-page strings → label each page
+    const { text } = await extractText(pdf, { mergePages: false });
+    const pages = Array.isArray(text) ? text : [text];
+    return pages
+      .map((t, i) => {
+        const trimmed = (t ?? "").trim();
+        return trimmed ? `--- Page ${i + 1} ---\n${trimmed}` : "";
+      })
+      .filter(Boolean)
+      .join("\n\n");
+  }
+  throw new Error("Unsupported rubric file type (.pdf, .xlsx, .csv, .docx, .txt)");
 }
 
 // Deterministic 70/15/15 split by index
