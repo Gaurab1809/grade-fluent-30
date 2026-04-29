@@ -349,12 +349,7 @@ function TrainingPage() {
             </div>
           </div>
 
-          <FileDropzone
-            onFiles={onAddFiles}
-            multiple
-            accept={{ "image/*": [], "application/pdf": [".pdf"] }}
-            hint="Drop multiple student papers (images or PDFs). Splits auto-assign 70/15/15."
-          />
+          <FileDropzone files={[]} onFiles={onAddFiles} />
 
           {papers.length > 0 && (
             <div className="overflow-x-auto rounded-lg border border-border">
