@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { GraduationCap, Loader2, Sparkles, Upload, Wand2, BarChart3, Trash2, ArrowRight } from "lucide-react";
 import * as XLSX from "xlsx";
 import mammoth from "mammoth";
+import { extractText, getDocumentProxy } from "unpdf";
 
 const MODELS = [
   { id: "google/gemini-2.5-flash", label: "Gemini 2.5 Flash" },
