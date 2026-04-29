@@ -136,7 +136,7 @@ Deno.serve(async (req) => {
       }
       // Chunked base64 to avoid building one huge JS string (memory limit fix).
       const buf = new Uint8Array(await file.arrayBuffer());
-      const CHUNK = 0x8000; // 32KB chunks
+      const CHUNK = 30000; // 30KB chunks (multiple of 3 so btoa pieces concat cleanly)
       let b64 = "";
       for (let j = 0; j < buf.length; j += CHUNK) {
         const slice = buf.subarray(j, Math.min(j + CHUNK, buf.length));
