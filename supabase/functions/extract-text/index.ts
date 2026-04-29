@@ -134,10 +134,16 @@ Deno.serve(async (req) => {
         failures.push({ name: f.name ?? `Page ${i + 1}`, error: `Download failed: ${dlErr?.message ?? "unknown"}` });
         continue;
       }
+      // Chunked base64 to avoid building one huge JS string (memory limit fix).
       const buf = new Uint8Array(await file.arrayBuffer());
-      let binary = "";
-      for (let j = 0; j < buf.length; j++) binary += String.fromCharCode(buf[j]);
-      const b64 = btoa(binary);
+      const CHUNK = 0x8000; // 32KB chunks
+      let b64 = "";
+      for (let j = 0; j < buf.length; j += CHUNK) {
+        const slice = buf.subarray(j, Math.min(j + CHUNK, buf.length));
+        let s = "";
+        for (let k = 0; k < slice.length; k++) s += String.fromCharCode(slice[k]);
+        b64 += btoa(s);
+      }
       const mime = f.mime || file.type || "application/octet-stream";
       const dataUrl = `data:${mime};base64,${b64}`;
       try {
