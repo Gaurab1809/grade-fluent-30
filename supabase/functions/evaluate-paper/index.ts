@@ -85,10 +85,7 @@ Deno.serve(async (req) => {
     const userPrompt = `RUBRIC:\n${rubric}\n\n---\nSTUDENT ANSWER TRANSCRIPT:\n${extractedText}`;
 
     const t0 = Date.now();
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const aiBody = JSON.stringify({
         model,
         messages: [
           { role: "system", content: systemPrompt },
@@ -143,8 +140,23 @@ Deno.serve(async (req) => {
           },
         }],
         tool_choice: { type: "function", function: { name: "return_evaluation" } },
-      }),
-    });
+      });
+
+    // Retry on 429 / 5xx with exponential backoff
+    let aiRes!: Response;
+    const MAX_ATTEMPTS = 4;
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+        body: aiBody,
+      });
+      if (aiRes.ok) break;
+      const retriable = aiRes.status === 429 || aiRes.status >= 500;
+      if (!retriable || attempt === MAX_ATTEMPTS) break;
+      const delay = Math.min(8000, 1000 * 2 ** attempt) + Math.random() * 500;
+      await new Promise((r) => setTimeout(r, delay));
+    }
     const latency = Date.now() - t0;
 
     if (!aiRes.ok) {

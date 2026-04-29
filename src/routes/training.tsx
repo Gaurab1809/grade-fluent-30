@@ -294,6 +294,8 @@ function TrainingPage() {
             }
             evalDone++;
             setProgress({ done: evalDone, total: totalEvals, label: "Running calibration" });
+            // Small spacing between AI calls to ease rate limiting
+            await new Promise((r) => setTimeout(r, 800));
           }
         }
         updatePaper(tgt.paper.localId, { stage: "done" });
