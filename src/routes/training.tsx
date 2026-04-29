@@ -314,17 +314,17 @@ function TrainingPage() {
             <Label className="font-display text-base">Rubric (shared across all papers)</Label>
             {rubricFileName && <Badge variant="secondary">{rubricFileName}</Badge>}
           </div>
-          <FileDropzone
-            onFiles={onRubricFile}
-            multiple={false}
-            accept={{
-              "text/*": [".txt", ".md", ".csv"],
-              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": [".xlsx"],
-              "application/vnd.ms-excel": [".xls"],
-              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
-            }}
-            hint="Drop rubric file (.xlsx, .csv, .docx, .txt)"
-          />
+          <label className="block rounded-lg border-2 border-dashed border-border bg-background hover:border-accent hover:bg-accent/5 cursor-pointer text-center px-4 py-6 transition-colors">
+            <input
+              type="file"
+              accept=".txt,.md,.csv,.xlsx,.xls,.docx"
+              className="hidden"
+              onChange={(e) => e.target.files && onRubricFile(Array.from(e.target.files))}
+            />
+            <div className="text-sm text-muted-foreground">
+              {rubricFileName ? "Replace rubric file" : "Drop rubric file (.xlsx, .csv, .docx, .txt)"}
+            </div>
+          </label>
           <Textarea
             value={rubric}
             onChange={(e) => setRubric(e.target.value)}
