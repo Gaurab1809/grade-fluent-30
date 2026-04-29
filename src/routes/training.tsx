@@ -339,12 +339,12 @@ function TrainingPage() {
           <label className="block rounded-lg border-2 border-dashed border-border bg-background hover:border-accent hover:bg-accent/5 cursor-pointer text-center px-4 py-6 transition-colors">
             <input
               type="file"
-              accept=".txt,.md,.csv,.xlsx,.xls,.docx"
+              accept=".txt,.md,.csv,.xlsx,.xls,.docx,.pdf"
               className="hidden"
               onChange={(e) => e.target.files && onRubricFile(Array.from(e.target.files))}
             />
             <div className="text-sm text-muted-foreground">
-              {rubricFileName ? "Replace rubric file" : "Drop rubric file (.xlsx, .csv, .docx, .txt)"}
+              {rubricFileName ? "Replace rubric file" : "Drop rubric file (.pdf, .xlsx, .csv, .docx, .txt)"}
             </div>
           </label>
           <Textarea
