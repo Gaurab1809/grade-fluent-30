@@ -331,8 +331,8 @@ function MetricsPage() {
                   <ResponsiveContainer width="100%" height={340}>
                     <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 10 }}>
                       <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis type="number" dataKey="x" name="Human %" domain={[0, 100]} label={{ value: "Human score (%)", position: "bottom", offset: 10 }} />
-                      <YAxis type="number" dataKey="y" name="AI %" domain={[0, 100]} label={{ value: "AI score (%)", angle: -90, position: "left" }} />
+                      <XAxis type="number" dataKey="x" name="Human %" domain={[0, 100]} label={{ value: "Human score (%)", position: "insideBottom", offset: -5 }} />
+                      <YAxis type="number" dataKey="y" name="AI %" domain={[0, 100]} label={{ value: "AI score (%)", angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }} />
                       <ZAxis range={[60, 60]} />
                       <Tooltip cursor={{ strokeDasharray: "3 3" }} formatter={(v: any) => fmt(Number(v), 1) + "%"} />
                       <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 100, y: 100 }]} stroke="var(--muted-foreground)" strokeDasharray="4 4" />
@@ -352,8 +352,8 @@ function MetricsPage() {
                     <ResponsiveContainer width="100%" height={300}>
                       <LineChart data={detail.roc.points} margin={{ top: 10, right: 20, bottom: 30, left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                        <XAxis type="number" dataKey="fpr" domain={[0, 1]} label={{ value: "FPR", position: "bottom", offset: 10 }} />
-                        <YAxis type="number" dataKey="tpr" domain={[0, 1]} label={{ value: "TPR", angle: -90, position: "left" }} />
+                        <XAxis type="number" dataKey="fpr" domain={[0, 1]} label={{ value: "FPR", position: "insideBottom", offset: -5 }} />
+                        <YAxis type="number" dataKey="tpr" domain={[0, 1]} label={{ value: "TPR", angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }} />
                         <Tooltip formatter={(v: any) => fmt(Number(v), 3)} />
                         <ReferenceLine segment={[{ x: 0, y: 0 }, { x: 1, y: 1 }]} stroke="var(--muted-foreground)" strokeDasharray="4 4" />
                         <Line type="monotone" dataKey="tpr" stroke="var(--primary)" dot={false} strokeWidth={2} />
@@ -366,8 +366,8 @@ function MetricsPage() {
                     <ResponsiveContainer width="100%" height={340}>
                       <ScatterChart margin={{ top: 10, right: 20, bottom: 30, left: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                        <XAxis type="number" dataKey="x" name="Mean" domain={[0, 100]} label={{ value: "Mean of AI & human (%)", position: "bottom", offset: 10 }} />
-                        <YAxis type="number" dataKey="y" name="Diff" label={{ value: "AI − human (pts)", angle: -90, position: "left" }} />
+                        <XAxis type="number" dataKey="x" name="Mean" domain={[0, 100]} label={{ value: "Mean of AI & human (%)", position: "insideBottom", offset: -5 }} />
+                        <YAxis type="number" dataKey="y" name="Diff" label={{ value: "AI − human (pts)", angle: -90, position: "insideLeft", style: { textAnchor: "middle" } }} />
                         <Tooltip formatter={(v: any) => fmt(Number(v), 2)} />
                         <ReferenceLine y={detail.regression.meanDiff} stroke="var(--accent)" strokeDasharray="3 3" />
                         <ReferenceLine y={detail.regression.meanDiff + 1.96 * detail.regression.sdDiff} stroke="var(--muted-foreground)" strokeDasharray="2 4" />
@@ -455,7 +455,7 @@ function MetricsPage() {
                       margin={{ top: 10, right: 20, bottom: 10, left: 30 }}
                     >
                       <CartesianGrid strokeDasharray="3 3" opacity={0.3} />
-                      <XAxis type="number" label={{ value: "MAE (% pts)", position: "bottom", offset: -2 }} />
+                      <XAxis type="number" label={{ value: "MAE (% pts)", position: "insideBottom", offset: -5 }} />
                       <YAxis type="category" dataKey="name" width={180} />
                       <Tooltip formatter={(v: any) => fmt(Number(v), 2) + " pts"} />
                       <Legend />
