@@ -85,10 +85,7 @@ Deno.serve(async (req) => {
     const userPrompt = `RUBRIC:\n${rubric}\n\n---\nSTUDENT ANSWER TRANSCRIPT:\n${extractedText}`;
 
     const t0 = Date.now();
-    const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
+    const aiBody = JSON.stringify({
         model,
         messages: [
           { role: "system", content: systemPrompt },
